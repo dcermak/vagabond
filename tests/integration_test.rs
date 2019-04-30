@@ -1,89 +1,156 @@
-extern crate speculate;
+extern crate stderrlog;
+
 extern crate vagabond;
 
-use speculate::speculate;
+#[macro_use]
+extern crate log;
 
 use std::env;
+use stderrlog::*;
 
-speculate! {
+struct TestFixture {
+    client: vagabond::Client,
+    user: String,
+    box_name: String,
+}
 
-    before {
-        let client: vagabond::Client =
-            vagabond::Client::new(Some(env::var("ATLAS_TOKEN").unwrap()));
-        let user: String = env::var("ATLAS_USER").unwrap();
-        let box_name: String = "test_box_1".to_string();
-
-        // try to delete the test box in case it still exists
-        let vagrant_box = vagabond::VagrantBox::new(&user, &box_name);
-        client.delete_box(&vagrant_box);
-
-        let box_create = || { client.create_box(&vagrant_box) };
-        let version_create = |version| { client.create_version(&vagrant_box, version) };
-    }
-
-    test "Box creation should succeed" {
-        let box_create_res = box_create();
-
-        assert!(box_create_res.is_ok());
-
-        let box_res = box_create_res.unwrap();
-        assert_eq!(box_res.username, user);
-        assert_eq!(box_res.name, box_name);
-    }
-
-    test "Version creation should succeed" {
-        box_create().unwrap();
-
-        let version_str: String = "1.2.3".to_string();
-        let description: String = "This is a test box".to_string();
-        let version = vagabond::BoxVersion {
-            version: &version_str, description: &description
+impl TestFixture {
+    fn new(box_name: Option<&str>) -> TestFixture {
+        let _ = stderrlog::new()
+            .module("vagabond")
+            .module(module_path!())
+            .verbosity(4)
+            .timestamp(Timestamp::Millisecond)
+            .init();
+        let fixture = TestFixture {
+            client: vagabond::Client::new(Some(env::var("ATLAS_TOKEN").unwrap())),
+            user: env::var("ATLAS_USER").unwrap(),
+            box_name: box_name.map_or("test_box".to_string(), |b| b.to_string()),
         };
+        debug!(
+            "Deleting previously existing box: {:?}",
+            fixture.client.delete_box(&fixture.get_vagrant_box())
+        );
 
-        let ver_create_res = version_create(&version);
-        assert!(ver_create_res.is_ok());
+        fixture
     }
 
-    // describe "Create a version" {
+    fn get_vagrant_box(&self) -> vagabond::VagrantBox {
+        vagabond::VagrantBox::new(&self.user, &self.box_name)
+    }
 
-    //     before {
-    //         let vagrant_box = vagabond::VagrantBox::new(&user, &box_name);
-    //         let box_create_res = client
-    //             .create_box(&vagrant_box)
-    //             .expect("Box creation should have succeeded.");
+    fn box_create(&self) -> vagabond::Result<vagabond::api::VagrantBox> {
+        self.client.create_box(&self.get_vagrant_box())
+    }
 
-    //     }
-
-    //     test "Version creation should succeed" {
-    //         let version_create_res = client.create_version(&vagrant_box, &version);
-    //         assert!(version_create_res.is_ok());
-
-    //         let version_res = version_create_res.unwrap();
-    //         assert_eq!(version_res.version, version_str);
-    //     }
-
-    //     describe "Manipulate a version" {
-
-    //         before {
-    //             client
-    //                 .create_version(&vagrant_box, &version)
-    //                 .expect("Version creation should succeed");
-    //         }
-
-    //         test "Version deletion should succeed" {
-    //             let version_delete_res = client.delete_version(&vagrant_box, &version);
-    //             assert!(version_delete_res.is_ok());
-    //         }
-
-    //         // after {
-    //         //     client
-    //         //         .delete_version(&vagrant_box, &version)
-    //         //         .expect("Version deletion should succeed");
-    //         // }
-    //     }
+    // fn version_create<S, T>(
+    //     &self,
+    //     version_str: S,
+    //     description: T,
+    // ) -> vagabond::Result<vagabond::api::Version>
+    // where
+    //     S: Into<String>,
+    //     T: Into<String>,
+    // {
+    //     let ver_str = version_str.into();
+    //     let descr = description.into();
+    //     let version = vagabond::BoxVersion {
+    //         version: &ver_str,
+    //         description: &descr,
+    //     };
+    //     self.client
+    //         .create_version(&self.get_vagrant_box(), &version)
     // }
+}
 
-    after {
-        client.delete_box(&vagrant_box);
+impl Drop for TestFixture {
+    fn drop(&mut self) {
+        debug!(
+            "Deleting Box: {:?}",
+            self.client.delete_box(&self.get_vagrant_box())
+        );
     }
+}
+
+struct VersionFixture {
+    test_fixture: TestFixture,
+    version: String,
+    description: String,
+}
+
+impl VersionFixture {
+    fn new(
+        box_name: Option<&str>,
+        version: Option<&str>,
+        description: Option<&str>,
+    ) -> VersionFixture {
+        let test_fixture = TestFixture::new(box_name);
+        test_fixture.box_create().unwrap();
+        VersionFixture {
+            test_fixture: test_fixture,
+            version: version.map_or("1.2.3".to_string(), |v| v.to_string()),
+            description: description.map_or("This is a test Box".to_string(), |d| d.to_string()),
+        }
+    }
+
+    fn get_vagrant_version(&self) -> vagabond::BoxVersion {
+        vagabond::BoxVersion {
+            version: &self.version,
+            description: &self.description,
+        }
+    }
+
+    fn version_create(&self) -> vagabond::Result<vagabond::api::Version> {
+        self.test_fixture.client.create_version(
+            &self.test_fixture.get_vagrant_box(),
+            &self.get_vagrant_version(),
+        )
+    }
+}
+
+#[test]
+fn box_creation_should_succeed() {
+    let fixture = TestFixture::new(None);
+
+    let box_create_res = fixture.box_create();
+
+    assert!(box_create_res.is_ok());
+
+    let box_res = box_create_res.unwrap();
+    assert_eq!(box_res.username, fixture.user);
+    assert_eq!(box_res.name, fixture.box_name);
+}
+
+#[test]
+fn version_creation_should_succeed() {
+    let version = "2.1.3";
+    let description = "This is a box for version testing";
+    let fixture = VersionFixture::new(Some("test_version_box"), Some(version), Some(description));
+
+    let ver_create_res = fixture.version_create();
+    assert!(ver_create_res.is_ok());
+
+    let version_result = ver_create_res.unwrap();
+
+    assert_eq!(version_result.version, version);
+    if version_result.description_markdown.is_some() {
+        assert_eq!(version_result.description_markdown.unwrap(), description);
+    }
+}
+
+#[test]
+fn version_deletion_should_work() {
+    let version = "42.21.11";
+    let fixture = VersionFixture::new(Some("test_version_box"), Some(version), None);
+
+    fixture.version_create().unwrap();
+
+    let delete_res = fixture.test_fixture.client.delete_version(
+        &fixture.test_fixture.get_vagrant_box(),
+        &fixture.get_vagrant_version(),
+    );
+
+    assert!(delete_res.is_ok());
+
+    assert_eq!(delete_res.unwrap().version, fixture.version);
 }

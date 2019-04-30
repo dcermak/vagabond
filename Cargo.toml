@@ -13,4 +13,4 @@ serde_derive = "1"
 log = "0.4"
 
 [dev-dependencies]
-speculate = "0.1"
+stderrlog = "0.4"
