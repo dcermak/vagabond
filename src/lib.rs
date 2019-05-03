@@ -1,3 +1,94 @@
+//! # vagabond - a thin wrapper around the Vagrant Cloud API
+//!
+//! vagabond is a wrapper around the [Vagrant Cloud
+//! API](https://www.vagrantup.com/docs/vagrant-cloud/api.html) and can be used
+//! to access the service powering https://app.vagrantup.com/ from Rust.
+//!
+//! All access to the Vagrant Cloud API requires an instance of the
+//! [`Client`](struct.Client.html) struct. It can be provided with a API token
+//! on construction:
+//! ```
+//! use vagabond::*;
+//! let client = Client::new(Some("my_api_key_here".to_string()));
+//! ```
+//!
+//! The `client` can then be used to perform some actions, e.g. to create a new
+//! box:
+//! ```no_run
+//! # use vagabond::*;
+//! # let client = Client::new(Some("my_api_key_here".to_string()));
+//! let username = "my_vagrant_cloud_user_name".to_string();
+//! let box_name = "awesome_box".to_string();
+//! let vagrant_box = VagrantBox::new(&username, &box_name);
+//! let res = client.create_box(&vagrant_box);
+//! match res {
+//!     Ok(b) => println!("Successfully created a box named: {}", b.name),
+//!     Err(e) => println!("Oops, got this error: {}", e)
+//! };
+//! ```
+//!
+//! ## Nomenclature
+//!
+//! The Vagrant Cloud API uses the following three terms (and provides API
+//! endpoints for each of them):
+//! - `box`: refers to a Vagrant box, e.g. "opensuse/openSUSE-Tumbleweed-x86_64".
+//! - `version`: a specific version of a Vagrant box, each version can contain
+//!   multiple providers, which store the actual virtual machines
+//! - `provider`: the actual vagrant box file that will be used to launch the
+//!   VM. A `provider` is always tied to a version (which itself is tied to a
+//!   `box`).
+//!
+//! vagabond follows this nomenclature as closely as possible.
+//!
+//!
+//! ## Creating a new Vagrant Box
+//!
+//! Creating a fresh Vagrant Box that will be not be hosted on Vagrant Cloud,
+//! can be achieved as follows (omitting error handling):
+//! ```no_run
+//! # use vagabond::*;
+//! let client = Client::new(Some("my_api_key_here".to_string()));
+//!
+//! // 1. create a box
+//! let username = "my_vagrant_cloud_user_name".to_string();
+//! let box_name = "awesome_box".to_string();
+//! let vagrant_box = VagrantBox::new(&username, &box_name);
+//! client.create_box(&vagrant_box);
+//!
+//! // 2. create a version
+//! let ver = "1.2.3".to_string();
+//! let descr = "Release from today!".to_string();
+//! let box_version = BoxVersion {
+//!     version: &ver,
+//!     description: &descr,
+//! };
+//! client.create_version(&vagrant_box, &box_version);
+//!
+//! // 3. create a provider
+//! let provider_name = "libvirt".to_string();
+//! let url = "https://foo.bar.baz/path/to/my/awesome.box".to_string();
+//! let provider = BoxProvider {
+//!     name: &provider_name,
+//!     url: &url,
+//! };
+//! client.create_provider(&vagrant_box, &box_version, &provider);
+//!
+//! // 4. release the version
+//! client.release_version(&vagrant_box, &box_version);
+//! ```
+//!
+//! ## Logging
+//!
+//! vagabond uses the [log](https://crates.io/crates/log) crate for logging
+//! purposes. API consumers can then use a logging implementation of their
+//! choice.
+//!
+//! vagabond only logs up to the log level `debug` and will **never** log the
+//! API token. Note that vagabond uses the
+//! [reqwest](https://crates.io/crates/reqwest) crate, which dependencies log
+//! extensive amounts of information at the log level `trace`. Using the log
+//! level `trace` is therefore **discouraged** as it could leak your API token!
+
 extern crate serde;
 extern crate serde_json;
 
