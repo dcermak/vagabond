@@ -99,12 +99,19 @@ extern crate failure;
 #[macro_use]
 extern crate log;
 
+#[cfg(test)]
+#[macro_use]
+extern crate lazy_static;
+
 use std::fmt;
 
 pub mod api;
 pub mod errors;
 
 pub use errors::*;
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 /// Available HTTP request types
@@ -422,8 +429,13 @@ struct Version<'a, 'b, 'c> {
 }
 
 #[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq, Clone)]
+/// struct representing a provider for a box on Vagrant Cloud
+///
+/// A BoxProvider represents the downloadable vagrant box for a specific
+/// virtualization environment, e.g. virtualbox or libvirt.
 pub struct BoxProvider<'a, 'b> {
-    /// The name of the provider
+    /// The name of the provider (e.g. libvirt, virtualbox)
     pub name: &'a String,
     /// A valid URL to download this provider.
     ///
@@ -432,7 +444,7 @@ pub struct BoxProvider<'a, 'b> {
     pub url: &'b String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 ///
 pub struct BoxVersion<'a, 'b> {
     /// The version number of this version.
@@ -441,7 +453,7 @@ pub struct BoxVersion<'a, 'b> {
     pub description: &'b String,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, PartialEq)]
 pub struct VagrantBox<'a, 'b, 'c, 'd> {
     /// The username of the organization that will own this box
     pub username: &'a String,
@@ -464,5 +476,58 @@ impl<'a, 'b, 'c, 'd> VagrantBox<'a, 'b, 'c, 'd> {
             description: None,
             is_private: None,
         }
+    }
+}
+
+/// Compare first with second if second is Some(s), otherwise return false
+fn compare_strings(first: &String, second: &Option<String>) -> bool {
+    match second {
+        Some(val) => first == val,
+        None => false,
+    }
+}
+
+fn cmp_vagrant_providers<'a, 'b>(
+    box_provider: &BoxProvider<'a, 'b>,
+    api_provider: &api::Provider,
+) -> bool {
+    (box_provider.name == &api_provider.name)
+        && compare_strings(&box_provider.url, &api_provider.original_url)
+}
+
+fn cmp_vagrant_versions<'a, 'b>(
+    box_version: &BoxVersion<'a, 'b>,
+    api_version: &api::Version,
+) -> bool {
+    (box_version.version == &api_version.version)
+        && compare_strings(box_version.description, &api_version.description_markdown)
+}
+
+fn cmp_vagrant_boxes<'a, 'b, 'c, 'd>(
+    vagrant_box: &VagrantBox<'a, 'b, 'c, 'd>,
+    api_vagrant_box: &api::VagrantBox,
+) -> bool {
+    (vagrant_box.username == &api_vagrant_box.username)
+        && (vagrant_box.name == &api_vagrant_box.name)
+        && (vagrant_box.short_description == api_vagrant_box.short_description.as_ref())
+        && (vagrant_box.description == api_vagrant_box.description_markdown.as_ref())
+        && (vagrant_box.is_private == api_vagrant_box.private)
+}
+
+impl<'a, 'b> PartialEq<api::Provider> for &BoxProvider<'a, 'b> {
+    fn eq(&self, other: &api::Provider) -> bool {
+        cmp_vagrant_providers(self, other)
+    }
+}
+
+impl<'a, 'b> PartialEq<api::Version> for &BoxVersion<'a, 'b> {
+    fn eq(&self, other: &api::Version) -> bool {
+        cmp_vagrant_versions(self, other)
+    }
+}
+
+impl<'a, 'b, 'c, 'd> PartialEq<api::VagrantBox> for &VagrantBox<'a, 'b, 'c, 'd> {
+    fn eq(&self, other: &api::VagrantBox) -> bool {
+        cmp_vagrant_boxes(self, other)
     }
 }

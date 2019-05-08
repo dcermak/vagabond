@@ -1,4 +1,4 @@
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 /// Reply from the Vagrant Cloud API containing the information about a
 /// provider.
 ///
@@ -15,7 +15,7 @@ pub struct Provider {
     pub download_url: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 pub struct Version {
     pub version: String,
     pub status: String,
@@ -29,7 +29,7 @@ pub struct Version {
     pub providers: Vec<Provider>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Deserialize, Debug, Default, PartialEq)]
 pub struct VagrantBox {
     pub tag: Option<String>,
     pub username: String,
@@ -43,4 +43,22 @@ pub struct VagrantBox {
     pub description_html: Option<String>,
     pub versions: Vec<Version>,
     pub current_version: Option<Version>,
+}
+
+impl<'a, 'b, 'c, 'd> PartialEq<super::VagrantBox<'a, 'b, 'c, 'd>> for &VagrantBox {
+    fn eq(&self, other: &super::VagrantBox<'a, 'b, 'c, 'd>) -> bool {
+        super::cmp_vagrant_boxes(other, self)
+    }
+}
+
+impl<'a, 'b> PartialEq<super::BoxVersion<'a, 'b>> for &Version {
+    fn eq(&self, other: &super::BoxVersion<'a, 'b>) -> bool {
+        super::cmp_vagrant_versions(other, self)
+    }
+}
+
+impl<'a, 'b> PartialEq<super::BoxProvider<'a, 'b>> for &Provider {
+    fn eq(&self, other: &super::BoxProvider<'a, 'b>) -> bool {
+        super::cmp_vagrant_providers(other, self)
+    }
 }
