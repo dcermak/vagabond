@@ -353,6 +353,44 @@ impl Client {
 
         self.api_call(url, RequestType::POST, Some(prov)) as Result<api::Provider>
     }
+
+    pub fn update_provider(
+        &self,
+        vagrant_box: &VagrantBox,
+        box_version: &BoxVersion,
+        box_provider: &BoxProvider,
+    ) -> Result<api::Provider> {
+        let url = format!(
+       "https://app.vagrantup.com/api/v1/box/{username}/{box_name}/version/{box_version}/provider/{provider}",
+            username = vagrant_box.username,
+            box_name = vagrant_box.name,
+            box_version = box_version.version,
+            provider = box_provider.name
+        );
+
+        let prov = Provider {
+            provider: box_provider,
+        };
+
+        self.api_call(url, RequestType::PUT, Some(prov)) as Result<api::Provider>
+    }
+
+    pub fn delete_provider(
+        &self,
+        vagrant_box: &VagrantBox,
+        box_version: &BoxVersion,
+        box_provider: &BoxProvider,
+    ) -> Result<api::Provider> {
+        let url = format!(
+       "https://app.vagrantup.com/api/v1/box/{username}/{box_name}/version/{box_version}/provider/{provider}",
+            username = vagrant_box.username,
+            box_name = vagrant_box.name,
+            box_version = box_version.version,
+            provider = box_provider.name
+        );
+
+        self.api_call(url, RequestType::DELETE, None as Option<Provider>) as Result<api::Provider>
+    }
 }
 
 #[derive(Debug, Serialize)]
