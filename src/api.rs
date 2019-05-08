@@ -1,17 +1,28 @@
+//! # API module
+//!
+//! This module provides structs corresponding to the expected replies from the
+//! Vagrant Cloud API.
+
 #[derive(Deserialize, Debug, Default, PartialEq)]
 /// Reply from the Vagrant Cloud API containing the information about a
 /// provider.
 ///
-/// See: https://www.vagrantup.com/docs/vagrant-cloud/api.html#providers
+/// [Official API
+/// documentation](https://www.vagrantup.com/docs/vagrant-cloud/api.html#providers)
 pub struct Provider {
-    /// name of the provider
+    /// Name of the provider
     pub name: String,
     /// Is the box for this provider hosted on Vagrant Cloud?
     pub hosted: bool,
+    ///
     pub hosted_token: Option<String>,
+    /// Original URL from which the box was downloaded
     pub original_url: Option<String>,
+    /// Date string indicating when this box was created
     pub created_at: String,
+    /// Date string indicating when this box was last updated
     pub updated_at: String,
+    /// Download URL of this box
     pub download_url: String,
 }
 
