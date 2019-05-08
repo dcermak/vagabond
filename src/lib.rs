@@ -458,6 +458,153 @@ impl Client {
 
         self.api_call(url, RequestType::DELETE, None as Option<Provider>) as Result<api::Provider>
     }
+
+    /// Creates the provider `box_provider`, belonging to the version
+    /// `box_version` of the box `vagrant_box`, creating all required elements
+    /// if they should not exist and releasing `box_version`.
+    ///
+    /// This function is a high level wrapper around the low-level API endpoints
+    /// like create_provider, create_box, etc. and can be used to directly
+    /// create a usable box on Vagrant Cloud.
+    ///
+    /// The `delete_other_version` parameter is intended for special purposes
+    /// and should be set to false for most cases. This function will delete all
+    /// providers with the same provider name in all other versions except in
+    /// `box_version`, when `delete_other_version` is set to `true`.
+    /// Given the following initial state:
+    /// ``` yaml
+    /// box:
+    ///   versions:
+    ///     - version: 1
+    ///       providers:
+    ///         - name: "libvirt"
+    ///           url: "foo"
+    ///         - name: "virtualbox"
+    ///           url: "bar"
+    ///     - version: 2
+    ///       providers:
+    ///         - name: "virtualbox"
+    ///           url: "baz"
+    /// ```
+    /// calling `ensure_provider_present` with `delete_other_version=true` and
+    /// the `libvirt` provider belonging to version `2`, results in the
+    /// following:
+    /// ``` yaml
+    /// box:
+    ///   versions:
+    ///     - version: 1
+    ///       providers:
+    ///         - name: "virtualbox"
+    ///           url: "bar"
+    ///     - version: 2
+    ///       providers:
+    ///         - name: "libvirt"
+    ///           url: "foo_bar"
+    ///         - name: "virtualbox"
+    ///           url: "baz"
+    /// ```
+    ///
+    /// This is mostly useful if you are building vagrant boxes on a CI that
+    /// only keeps the last successful build of each provider.
+    ///
+    /// This function will also delete versions for which it deleted the last
+    /// provider if `delete_other_version=true`.
+    pub fn ensure_provider_present(
+        &self,
+        vagrant_box: &VagrantBox,
+        box_version: &BoxVersion,
+        box_provider: &BoxProvider,
+        delete_other_version: bool,
+    ) -> Result<api::VagrantBox> {
+        // does this box exist?
+        // no => create it and return the result of that operation
+        // yes => just return the result
+        let box_res = self.read_box(&vagrant_box);
+        let box_res = if box_res.is_err() {
+            let err = box_res.err().expect("This value must be Err");
+            err.into_status()
+                .and_then(|st| match st {
+                    reqwest::StatusCode::NOT_FOUND => Some(self.create_box(&vagrant_box)),
+                    _ => Some(Err(err)),
+                })
+                .expect("This value must be Some")
+        } else {
+            Ok(box_res.expect("This value must be Ok"))
+        }?;
+
+        // update the box if it some settings aren't matching
+        let box_res = if vagrant_box != box_res {
+            self.update_box(vagrant_box)?
+        } else {
+            box_res
+        };
+
+        let mut version_present = false;
+
+        // check all versions if their version matches the one we seek to add
+        //
+        // if the delete_other_version flag is set: delete providers with the
+        // same name as box_provider (and cleanup empty versions)
+        for ver in box_res.versions.iter() {
+            if &ver.version == box_version.version {
+                version_present = true;
+                continue;
+            }
+            if delete_other_version {
+                match &ver
+                    .providers
+                    .iter()
+                    .find(|prov| &prov.name == box_provider.name)
+                {
+                    None => (),
+                    Some(_) => {
+                        let version_to_delete = BoxVersion {
+                            version: &ver.version,
+                            description: ver
+                                .description_markdown
+                                .as_ref()
+                                .unwrap_or(&box_version.description),
+                        };
+                        self.delete_provider(vagrant_box, &version_to_delete, box_provider)?;
+                        // was that the only provider for this version?
+                        // => delete the version too
+                        if ver.providers.len() == 1 {
+                            self.delete_version(vagrant_box, &version_to_delete)?;
+                        }
+                    }
+                };
+            }
+        }
+
+        let matching_version = if !version_present {
+            self.create_version(vagrant_box, box_version)?
+        } else {
+            box_res
+                .versions
+                .into_iter()
+                .find(|ver| &ver.version == box_version.version)
+                .expect("A matching Version should have been found")
+        };
+
+        // redo the same for the provider
+        let matching_provider = match matching_version
+            .providers
+            .into_iter()
+            .find(|prov| &prov.name == box_provider.name)
+        {
+            None => self.create_provider(vagrant_box, box_version, box_provider),
+            Some(prov) => Ok(prov) as Result<api::Provider>,
+        }?;
+
+        // adjust the provider optionally
+        if box_provider != matching_provider {
+            self.update_provider(vagrant_box, box_version, box_provider)?;
+        }
+
+        self.release_version(vagrant_box, box_version)?;
+
+        self.read_box(vagrant_box)
+    }
 }
 
 #[derive(Debug, Serialize)]
