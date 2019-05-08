@@ -137,15 +137,18 @@ pub struct Client {
 }
 
 impl Client {
+    /// Create a new Client
+    ///
+    /// Parameters:
+    ///
+    /// `token` - optional API token, note that some operations will not work
+    ///           without one
     pub fn new<S>(token: Option<S>) -> Client
     where
         S: Into<String>,
     {
         Client {
-            token: match token {
-                Some(s) => Some(s.into()),
-                None => None,
-            },
+            token: token.map(|s| s.into()),
         }
     }
 
@@ -334,6 +337,13 @@ impl Client {
         self.api_call(url, RequestType::PUT, None as Option<Version>) as Result<api::Version>
     }
 
+    /// Creates a new provider for the given `vagrant_box` and `box_version`.
+    ///
+    /// Note that the `vagrant_box` and `box_version` already need to exist on
+    /// Vagrant Cloud, otherwise the call will fail.
+    ///
+    /// This function is a wrapper around the following API endpoint: [POST
+    /// /api/v1/box/:username/:name/version/:version/providers](https://www.vagrantup.com/docs/vagrant-cloud/api.html#create-a-provider)
     pub fn create_provider(
         &self,
         vagrant_box: &VagrantBox,
@@ -375,6 +385,12 @@ impl Client {
         self.api_call(url, RequestType::PUT, Some(prov)) as Result<api::Provider>
     }
 
+    /// Deletes the `box_provider` belonging to the `box_version` of
+    /// `vagrant_box`, but does not touch the version or the box itself.
+    ///
+    /// This function is a wrapper around the [DELETE
+    /// /api/v1/box/:username/:name/version/:version/provider/:provider](https://www.vagrantup.com/docs/vagrant-cloud/api.html#delete-a-provider)
+    /// API endpoint.
     pub fn delete_provider(
         &self,
         vagrant_box: &VagrantBox,
@@ -394,11 +410,13 @@ impl Client {
 }
 
 #[derive(Debug, Serialize)]
+/// internal struct for sending a BoxProvider via the Vagrant Cloud API
 struct Provider<'a, 'b, 'c> {
     provider: &'a BoxProvider<'b, 'c>,
 }
 
 #[derive(Debug, Serialize)]
+/// internal struct for sending a BoxVersion via the Vagrant Cloud API
 struct Version<'a, 'b, 'c> {
     version: &'a BoxVersion<'b, 'c>,
 }
