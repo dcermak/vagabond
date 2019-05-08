@@ -283,6 +283,29 @@ impl Client {
         self.api_call(url, RequestType::GET, None as Option<VagrantBox>) as Result<api::VagrantBox>
     }
 
+    pub fn update_box(&self, vagrant_box: &VagrantBox) -> Result<api::VagrantBox> {
+        let url = format!(
+            "https://app.vagrantup.com/api/v1/box/{username}/{box_name}",
+            username = vagrant_box.username,
+            box_name = vagrant_box.name
+        );
+
+        let update_box = UpdateBox {
+            name: vagrant_box.name,
+            short_description: vagrant_box.short_description,
+            description: vagrant_box.description,
+            is_private: vagrant_box.is_private,
+        };
+
+        self.api_call(
+            url,
+            RequestType::PUT,
+            Some(UpdateBoxPayload {
+                update_box: &update_box,
+            }),
+        )
+    }
+
     pub fn create_version(
         &self,
         vagrant_box: &VagrantBox,
@@ -327,6 +350,27 @@ impl Client {
         );
 
         self.api_call(url, RequestType::DELETE, None as Option<Version>) as Result<api::Version>
+    }
+
+    /// this might not work
+    pub fn update_version(
+        &self,
+        vagrant_box: &VagrantBox,
+        box_version: &BoxVersion,
+    ) -> Result<api::Version> {
+        let url = format!(
+            "https://app.vagrantup.com/api/v1/box/{username}/{box_name}/version/{box_version}",
+            username = vagrant_box.username,
+            box_name = vagrant_box.name,
+            box_version = box_version.version
+        );
+
+        let payload = BoxVersion {
+            version: box_version.version,
+            description: box_version.description,
+        };
+
+        self.api_call(url, RequestType::PUT, Some(payload)) as Result<api::Version>
     }
 
     pub fn release_version(
@@ -429,6 +473,25 @@ struct Version<'a, 'b, 'c> {
 }
 
 #[derive(Debug, Serialize)]
+/// internal struct for modifying a Box
+struct UpdateBox<'a, 'b, 'c> {
+    /// The name of the box.
+    name: &'a String,
+    /// A short summary of the box.
+    short_description: Option<&'b String>,
+    /// A longer description of the box. Can be formatted with Markdown.
+    description: Option<&'c String>,
+    /// (Optional, default: true) - Whether or not this box is private.
+    is_private: Option<bool>,
+}
+
+#[derive(Debug, Serialize)]
+/// payload to send via PUT to update the box
+struct UpdateBoxPayload<'a, 'b, 'c, 'd> {
+    #[serde(rename = "box")]
+    update_box: &'d UpdateBox<'a, 'b, 'c>,
+}
+
 #[derive(Debug, Serialize, PartialEq, Clone)]
 /// struct representing a provider for a box on Vagrant Cloud
 ///
