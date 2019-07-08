@@ -148,8 +148,11 @@ impl Client {
     ///
     /// Parameters:
     ///
-    /// `token` - optional API token, note that some operations will not work
-    ///           without one
+    /// `token` - optional API token
+    ///
+    /// Note: some operations will not work without an API token. `vagabond`
+    /// will **not** prevent you from performing these, you'll get an Error from
+    /// the Vagrant Cloud API instead.
     pub fn new<S>(token: Option<S>) -> Client
     where
         S: Into<String>,
