@@ -1,0 +1,4 @@
+ignore:
+  # don't care about test coverage of the tests
+  - "tests/integration_test.rs"
+  - "src/tests.rs"

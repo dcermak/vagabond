@@ -1,9 +1,6 @@
 language: rust
 env:
   global:
-    # tests access the same API resource concurrently => leads to race conditions
-    # => run just one test at a time
-    - RUST_TEST_THREADS: 1
     - ATLAS_USER: "dcermak-bot"
     - secure: "d/X7p/pfHlonGYpjn9C7Tp3ksotCTDiAVEkq/CMkumhH8P3Msz/SDsF71SomhPSLqecEoEq69EHXAZf3T82SpR5DbcTfejoUtBeIG7A9ebhp6YCLpQhVY5ZVpX+ymrSpH5kGam356lHrMu4YdDdgcElO8AceegiZcj01xZ2Ie5EEBke4N4Sb7MgTgjod5yyr0op63mbWU5GlSY5pLldiQ5OjfNy2VsqJlUAHH2GKWHiwqS2bvE2+tJ8J6ycJc08UVlxZilexO8TI//yaq6no7Nv+YZgU5XDOBEaHEwo7sCO6Sl+8MJR3fs4vLllEm3Hmvww7qIXBHUaQhK99n0cYZc4x5jNTjG6+XXrGqJIayBvGA+Xo+Be21hQWHeyAcWVE6IFh1k4uLopDz8JDoWG6h5QKHvjW1AfTejzGazDTjIm3c/9zeTODkkTSzGPQa1Lezp7oPG8dIVfFBNxNCI3BDhn6HRzb5M2b+V0DyzIhc+PjSuDaU3zs4fPYFqNJQPdJjcaOvUxZCAI0012bS9b3x27PheHNCvd50IyTfTyN1gsNEG8hr9XHpHnmYfntoVUv0EPk6/y/nC25KH6wETjfF/Pb0goFxHkJLeh2uw+M4X5+mvofAfF+N4SDnL9hKgsWpxOx2Lymqky5SHpmVaV8lwRWod5aFFxup8dT+ScXFVc="
 rust:

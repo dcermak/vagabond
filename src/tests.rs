@@ -8,6 +8,8 @@ lazy_static! {
     static ref BOXNAME: String = "MY_BOX".to_string();
 }
 
+extern crate mockito;
+
 use super::*;
 
 #[test]
@@ -69,4 +71,68 @@ fn compare_boxes() {
 
     api_response.private = Some(true);
     assert_ne!(&vagrant_box, api_response);
+}
+
+#[test]
+fn error_conversion_from_reqwest_error() {
+    let url = &URL.to_string();
+    let res = reqwest::get(url);
+
+    assert!(res.is_err());
+    let err_msg = format!("{}", res.as_ref().unwrap_err());
+
+    match Error::from(res.unwrap_err()) {
+        Error::Io(e) => {
+            let inner_err_msg = format!("{}", e);
+            assert_eq!(inner_err_msg, err_msg);
+        }
+        _ => assert!(false),
+    }
+}
+
+#[test]
+fn error_conversion_from_malformed_request_result() {
+    let _mock = mockito::mock("GET", "/")
+        .with_status(200)
+        .with_body("{}")
+        .create();
+
+    let res = reqwest::get(&mockito::server_url());
+
+    assert!(res.is_ok());
+
+    match Error::from(res.unwrap()) {
+        Error::ApiCallFailure(code, msg) => {
+            assert_eq!(code, 200);
+            assert_eq!(msg, "");
+        }
+        _ => assert!(false),
+    }
+}
+
+#[test]
+fn error_conversion_from_vagrantcloud_error_request_result() {
+    let _mock = mockito::mock("GET", "/")
+        .with_status(421)
+        .with_body(
+            r#"{
+  "errors": [
+    "Resource not found!"
+  ],
+  "success": false
+}"#,
+        )
+        .create();
+
+    let res = reqwest::get(&mockito::server_url());
+
+    assert!(res.is_ok());
+
+    match Error::from(res.unwrap()) {
+        Error::ApiCallFailure(code, msg) => {
+            assert_eq!(code, 421);
+            assert_eq!(msg, "Resource not found!");
+        }
+        _ => assert!(false),
+    }
 }

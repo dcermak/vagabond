@@ -1,3 +1,4 @@
+extern crate rand;
 extern crate stderrlog;
 
 extern crate vagabond;
@@ -10,6 +11,10 @@ extern crate lazy_static;
 
 use std::env;
 use stderrlog::*;
+
+use rand::distributions::{Distribution, Standard};
+
+const RANDOM_BOXNAME_POSTFIX_LENGTH: usize = 5;
 
 struct TestFixture {
     client: vagabond::Client,
@@ -25,10 +30,20 @@ impl TestFixture {
             .verbosity(4)
             .timestamp(Timestamp::Millisecond)
             .init();
+
+        let rng = rand::thread_rng();
+        let postfix: String = Standard
+            .sample_iter(rng)
+            .filter(|v: &char| v.is_ascii_alphabetic() || v.is_ascii_alphanumeric())
+            .take(RANDOM_BOXNAME_POSTFIX_LENGTH)
+            .collect::<String>();
+
         let fixture = TestFixture {
             client: vagabond::Client::new(Some(env::var("ATLAS_TOKEN").unwrap())),
             user: env::var("ATLAS_USER").unwrap(),
-            box_name: box_name.map_or("test_box".to_string(), |b| b.to_string()),
+            // append a random ASCII string to the boxname, so that we can run
+            // the tests concurrently
+            box_name: box_name.map_or("test_box".to_string(), |b| b.to_string()) + &postfix,
         };
         debug!(
             "Deleting previously existing box: {:?}",
@@ -223,6 +238,91 @@ fn test_create_provider_from_empty() {
 }
 
 #[test]
+/// check that ensure_provider_present() correctly updates the vagrant box if we
+/// pass it an updated one
+fn check_box_updated_by_ensure_provider_present() {
+    let fixture = TestFixture::new(Some(&BOX_NAME));
+
+    let new_box = fixture
+        .client
+        .ensure_provider_present(
+            &fixture.get_vagrant_box(),
+            &BOX_VERSION_1,
+            &LIBVIRT_PROVIDER_1,
+            false,
+        )
+        .unwrap();
+
+    assert!(new_box.description_markdown.is_none());
+
+    let description = "This is a description".to_string();
+
+    let box_with_description = vagabond::VagrantBox {
+        username: &new_box.username,
+        name: &new_box.name,
+        is_private: new_box.private,
+        short_description: new_box.short_description.as_ref(),
+        description: Some(&description),
+    };
+
+    let updated_box = fixture.client.ensure_provider_present(
+        &box_with_description,
+        &BOX_VERSION_1,
+        &LIBVIRT_PROVIDER_1,
+        false,
+    );
+    assert!(updated_box.is_ok());
+
+    let updated_box = updated_box.unwrap();
+
+    assert!(updated_box.description_markdown.is_some());
+    assert_eq!(updated_box.description_markdown, Some(description));
+}
+
+#[test]
+/// check that ensure_provider_present() correctly updates the provider if we
+/// pass it an updated one
+fn check_provider_updated_by_ensure_provider_present() {
+    let fixture = TestFixture::new(Some(&BOX_NAME));
+
+    let new_box = fixture
+        .client
+        .ensure_provider_present(
+            &fixture.get_vagrant_box(),
+            &BOX_VERSION_1,
+            &LIBVIRT_PROVIDER_1,
+            false,
+        )
+        .unwrap();
+
+    let old_provider = &new_box.versions[0].providers[0];
+    assert_eq!(old_provider, *LIBVIRT_PROVIDER_1);
+
+    let url = "https://this.url.doesn/t/exist.box".to_string();
+    let provider_with_new_url = vagabond::BoxProvider {
+        name: LIBVIRT_PROVIDER_1.name,
+        url: &url,
+    };
+
+    let updated_box = fixture.client.ensure_provider_present(
+        &fixture.get_vagrant_box(),
+        &BOX_VERSION_1,
+        &provider_with_new_url,
+        false,
+    );
+    assert!(updated_box.is_ok());
+
+    let updated_box = updated_box.unwrap();
+
+    assert_eq!(updated_box.versions.len(), 1);
+    assert_eq!(updated_box.versions[0].providers.len(), 1);
+
+    let updated_provider = &updated_box.versions[0].providers[0];
+    assert!(updated_provider.original_url.is_some());
+    assert_eq!(updated_provider.original_url.as_ref().unwrap(), &url);
+}
+
+#[test]
 /// check whether ensure_provider_present() adds a second provider to an already
 /// existing version
 fn test_add_second_provider() {
@@ -408,4 +508,19 @@ fn ensure_provider_present_doesnt_delete_passed_provider() {
     assert_eq!(providers.len(), 2);
     assert!(providers.iter().any(|prov| prov == *LIBVIRT_PROVIDER_1));
     assert!(providers.iter().any(|prov| prov == *VIRTUALBOX_PROVIDER_1));
+}
+
+#[test]
+fn check_request_without_api_key_works() {
+    let client = vagabond::Client::new(None as Option<String>);
+
+    let ubuntu = "ubuntu".to_string();
+    let trusty = "trusty64".to_string();
+    let trusty64 = vagabond::VagrantBox::new(&ubuntu, &trusty);
+    let ubuntu_box = client.read_box(&trusty64);
+
+    assert!(ubuntu_box.is_ok());
+    let ubuntu_box = ubuntu_box.unwrap();
+    assert_eq!(ubuntu_box.name, trusty);
+    assert_eq!(ubuntu_box.username, ubuntu);
 }
