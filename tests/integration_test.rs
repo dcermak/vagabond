@@ -1,3 +1,4 @@
+extern crate rand;
 extern crate stderrlog;
 
 extern crate vagabond;
@@ -10,6 +11,10 @@ extern crate lazy_static;
 
 use std::env;
 use stderrlog::*;
+
+use rand::distributions::{Distribution, Standard};
+
+const RANDOM_BOXNAME_POSTFIX_LENGTH: usize = 5;
 
 struct TestFixture {
     client: vagabond::Client,
@@ -25,10 +30,20 @@ impl TestFixture {
             .verbosity(4)
             .timestamp(Timestamp::Millisecond)
             .init();
+
+        let rng = rand::thread_rng();
+        let postfix: String = Standard
+            .sample_iter(rng)
+            .filter(|v: &char| v.is_ascii_alphabetic() || v.is_ascii_alphanumeric())
+            .take(RANDOM_BOXNAME_POSTFIX_LENGTH)
+            .collect::<String>();
+
         let fixture = TestFixture {
             client: vagabond::Client::new(Some(env::var("ATLAS_TOKEN").unwrap())),
             user: env::var("ATLAS_USER").unwrap(),
-            box_name: box_name.map_or("test_box".to_string(), |b| b.to_string()),
+            // append a random ASCII string to the boxname, so that we can run
+            // the tests concurrently
+            box_name: box_name.map_or("test_box".to_string(), |b| b.to_string()) + &postfix,
         };
         debug!(
             "Deleting previously existing box: {:?}",
