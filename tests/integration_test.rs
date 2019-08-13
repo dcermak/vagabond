@@ -424,3 +424,18 @@ fn ensure_provider_present_doesnt_delete_passed_provider() {
     assert!(providers.iter().any(|prov| prov == *LIBVIRT_PROVIDER_1));
     assert!(providers.iter().any(|prov| prov == *VIRTUALBOX_PROVIDER_1));
 }
+
+#[test]
+fn check_request_without_api_key_works() {
+    let client = vagabond::Client::new(None as Option<String>);
+
+    let ubuntu = "ubuntu".to_string();
+    let trusty = "trusty64".to_string();
+    let trusty64 = vagabond::VagrantBox::new(&ubuntu, &trusty);
+    let ubuntu_box = client.read_box(&trusty64);
+
+    assert!(ubuntu_box.is_ok());
+    let ubuntu_box = ubuntu_box.unwrap();
+    assert_eq!(ubuntu_box.name, trusty);
+    assert_eq!(ubuntu_box.username, ubuntu);
+}
