@@ -254,7 +254,7 @@ impl Client {
                 Ok(r) => Ok(r),
                 Err(e) => {
                     debug!("Received unexpected response: {:?}", e);
-                    Err(Error::UnexpectedResponse(response.text()?.into()))
+                    Err(Error::UnexpectedResponse(response.text()?))
                 }
             },
             _ => Err(response)?,
