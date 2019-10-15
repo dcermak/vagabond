@@ -683,7 +683,7 @@ pub struct VagrantBox<'a, 'b, 'c, 'd> {
 impl<'a, 'b, 'c, 'd> VagrantBox<'a, 'b, 'c, 'd> {
     pub fn new(username: &'a String, box_name: &'b String) -> VagrantBox<'a, 'b, 'c, 'd> {
         VagrantBox {
-            username: username,
+            username,
             name: box_name,
             short_description: None,
             description: None,
