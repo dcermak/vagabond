@@ -1,0 +1,60 @@
+on: [push, pull_request]
+
+jobs:
+  check:
+    name: check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+  build_opensuse:
+    name: build on openSUSE
+    runs-on: ubuntu-latest
+    container:
+      image: opensuse/tumbleweed
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: install dependencies
+      run: zypper --non-interactive in rust cargo gcc openssl libopenssl-devel
+    - name: build
+      run: cargo build --verbose
+    - name: build release
+      run: cargo build --verbose --release
+
+  fmt:
+    name: rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: rustup component add clippy
+      - uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: -- -D warnings
