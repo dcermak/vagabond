@@ -511,6 +511,50 @@ fn ensure_provider_present_doesnt_delete_passed_provider() {
 }
 
 #[test]
+fn check_adding_a_provider_to_existing_empty_version_works() {
+    let fixture = TestFixture::new(Some(&BOX_NAME));
+
+    let box_state = fixture
+        .client
+        .ensure_provider_present(
+            &fixture.get_vagrant_box(),
+            &BOX_VERSION_1,
+            &LIBVIRT_PROVIDER_1,
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(box_state.versions.len(), 1);
+    let ver = &box_state.versions[0];
+    assert_eq!(ver.providers.len(), 1);
+
+    let deleted_version = fixture
+        .client
+        .delete_version(&fixture.get_vagrant_box(), &BOX_VERSION_1)
+        .unwrap();
+
+    assert_eq!(&deleted_version.version, BOX_VERSION_1.version);
+
+    // now create a new provider for the same version
+
+    let box_state = fixture
+        .client
+        .ensure_provider_present(
+            &fixture.get_vagrant_box(),
+            &BOX_VERSION_1,
+            &LIBVIRT_PROVIDER_1,
+            false,
+        )
+        .unwrap();
+
+    assert_eq!(box_state.versions.len(), 1);
+    let ver = &box_state.versions[0];
+    assert_eq!(ver.providers.len(), 1);
+    let provider = &ver.providers[0];
+    assert_eq!(&provider.name, LIBVIRT_PROVIDER_1.name);
+}
+
+#[test]
 fn check_request_without_api_key_works() {
     let client = vagabond::Client::new(None as Option<String>);
 
