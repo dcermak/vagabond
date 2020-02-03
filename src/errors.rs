@@ -106,14 +106,15 @@ struct VagrantCloudErrorPayload {
     success: bool,
 }
 
-impl From<reqwest::Response> for Error {
+impl From<reqwest::blocking::Response> for Error {
     /// Create a [`Error`](enum.Error.html) from a `reqwest::Response`
-    fn from(mut resp: reqwest::Response) -> Error {
+    fn from(resp: reqwest::blocking::Response) -> Error {
+        let status = resp.status();
         let msg: reqwest::Result<VagrantCloudErrorPayload> = resp.json();
         let err_msg: String = match msg {
             Ok(rpl) => rpl.errors.join(", "),
             Err(_) => "".to_string(),
         };
-        Error::ApiCallFailure(resp.status(), err_msg)
+        Error::ApiCallFailure(status, err_msg)
     }
 }
