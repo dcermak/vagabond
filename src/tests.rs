@@ -76,7 +76,7 @@ fn compare_boxes() {
 #[test]
 fn error_conversion_from_reqwest_error() {
     let url = &URL.to_string();
-    let res = reqwest::get(url);
+    let res = reqwest::blocking::get(url);
 
     assert!(res.is_err());
     let err_msg = format!("{}", res.as_ref().unwrap_err());
@@ -97,7 +97,7 @@ fn error_conversion_from_malformed_request_result() {
         .with_body("{}")
         .create();
 
-    let res = reqwest::get(&mockito::server_url());
+    let res = reqwest::blocking::get(&mockito::server_url());
 
     assert!(res.is_ok());
 
@@ -124,7 +124,7 @@ fn error_conversion_from_vagrantcloud_error_request_result() {
         )
         .create();
 
-    let res = reqwest::get(&mockito::server_url());
+    let res = reqwest::blocking::get(&mockito::server_url());
 
     assert!(res.is_ok());
 

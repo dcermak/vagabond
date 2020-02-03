@@ -203,7 +203,7 @@ impl Client {
         S: Into<String>,
         P: serde::Serialize,
     {
-        let client = reqwest::Client::new();
+        let client = reqwest::blocking::Client::new();
 
         let url = match reqwest::Url::parse(&api_url.into()) {
             Ok(u) => u,
@@ -250,13 +250,18 @@ impl Client {
         match response.status() {
             reqwest::StatusCode::OK
             | reqwest::StatusCode::CREATED
-            | reqwest::StatusCode::NO_CONTENT => match response.json() {
-                Ok(r) => Ok(r),
-                Err(e) => {
-                    debug!("Received unexpected response: {:?}", e);
-                    Err(Error::UnexpectedResponse(response.text()?.into()))
+            | reqwest::StatusCode::NO_CONTENT => {
+                let mut recv_data: Vec<u8> = vec![];
+                response.copy_to(&mut recv_data)?;
+
+                match serde_json::from_slice(&recv_data) {
+                    Ok(r) => Ok(r),
+                    Err(e) => {
+                        debug!("Received unexpected response: {:?}", e);
+                        Err(Error::UnexpectedResponse(response.text()?.into()))
+                    }
                 }
-            },
+            }
             _ => Err(response)?,
         }
     }
@@ -522,17 +527,15 @@ impl Client {
         // does this box exist?
         // no => create it and return the result of that operation
         // yes => just return the result
-        let box_res = self.read_box(&vagrant_box);
-        let box_res = if box_res.is_err() {
-            let err = box_res.err().expect("This value must be Err");
-            err.into_status()
-                .and_then(|st| match st {
-                    reqwest::StatusCode::NOT_FOUND => Some(self.create_box(&vagrant_box)),
-                    _ => Some(Err(err)),
-                })
-                .expect("This value must be Some")
-        } else {
-            Ok(box_res.expect("This value must be Ok"))
+        let box_res = match self.read_box(&vagrant_box) {
+            Err(e) => match e.into_status() {
+                Some(st) => match st {
+                    reqwest::StatusCode::NOT_FOUND => self.create_box(&vagrant_box),
+                    _ => Err(e),
+                },
+                None => Err(e),
+            },
+            Ok(res) => Ok(res),
         }?;
 
         // update the box if it some settings aren't matching
